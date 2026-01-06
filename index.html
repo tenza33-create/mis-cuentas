@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Cuentas Sincronizadas</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f4f8; margin: 0; padding: 10px; display: flex; justify-content: center; }
+        .contenedor { width: 100%; max-width: 800px; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #2c3e50; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .tarjeta { padding: 15px; border-radius: 12px; text-align: center; color: white; font-weight: bold; }
+        .ingresos-card { background-color: #27ae60; } .pagos-card { background-color: #e74c3c; }
+        .saldo-mes-card { background-color: #2980b9; } .saldo-total-card { background-color: #8e44ad; }
+        .monto { display: block; font-size: 1.2em; }
+        .formulario { background: #f9f9f9; padding: 15px; border-radius: 10px; display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 20px; border: 1px solid #eee; }
+        input, select, button { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+        .btn-guardar { background-color: #2c3e50; color: white; border: none; font-weight: bold; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+        th { background: #eee; padding: 10px; }
+        td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        .btn-borrar { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 5px; }
+        #miGrafico { max-width: 200px; margin: 0 auto 20px; display: block; }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <h2>💰 Mis Cuentas</h2>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <select id="filtroMes" onchange="escucharDatos()">
+            <option value="0">Enero</option><option value="1">Febrero</option><option value="2">Marzo</option>
+            <option value="3">Abril</option><option value="4">Mayo</option><option value="5">Junio</option>
+            <option value="6">Julio</option><option value="7">Agosto</option><option value="8">Septiembre</option>
+            <option value="9">Octubre</option><option value="10">Noviembre</option><option value="11">Diciembre</option>
+        </select>
+    </div>
+
+    <canvas id="miGrafico"></canvas>
+
+    <div class="dashboard">
+        <div class="tarjeta ingresos-card">INGRESOS <span id="totalIngresos" class="monto">0€</span></div>
+        <div class="tarjeta pagos-card">PAGOS <span id="totalPagos" class="monto">0€</span></div>
+        <div class="tarjeta saldo-mes-card">MES <span id="totalSaldoMes" class="monto">0€</span></div>
+        <div class="tarjeta saldo-total-card">TOTAL <span id="totalSaldoAcumulado" class="monto">0€</span></div>
+    </div>
+
+    <div class="formulario">
+        <input type="date" id="inputFecha">
+        <input type="text" id="inputConcepto" placeholder="¿Qué es? (Ej: Compra)">
+        <input type="number" id="inputIngreso" placeholder="Ingreso €">
+        <input type="number" id="inputPago" placeholder="Pago €">
+        <button class="btn-guardar" onclick="guardarDato()">ANOTAR GASTO</button>
+    </div>
+
+    <table id="tabla">
+        <thead>
+            <tr><th>CONCEPTO</th><th>CANTIDAD</th><th>ACCION</th></tr>
+        </thead>
+        <tbody id="cuerpoTabla"></tbody>
+    </table>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // TUS CLAVES DE FIREBASE
+    const firebaseConfig = {
+        apiKey: "AIzaSyAv2BXi_-TNUd0lmzPMrCArkiR4DjQ4N28",
+        authDomain: "mis-cuentas-casa.firebaseapp.com",
+        projectId: "mis-cuentas-casa",
+        storageBucket: "mis-cuentas-casa.firebasestorage.app",
+        messagingSenderId: "924421410964",
+        appId: "1:924421410964:web:381bb23c3ace948ac16481"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let miGrafico = null;
+
+    window.guardarDato = async () => {
+        const f = document.getElementById('inputFecha').value;
+        const c = document.getElementById('inputConcepto').value;
+        const i = parseFloat(document.getElementById('inputIngreso').value) || 0;
+        const p = parseFloat(document.getElementById('inputPago').value) || 0;
+        if(!f || !c) return alert("Pon la fecha y el nombre");
+        await addDoc(collection(db, "movimientos"), { fecha: f, concepto: c, ingreso: i, pago: p, tiempo: Date.now() });
+        document.getElementById('inputConcepto').value = "";
+        document.getElementById('inputIngreso').value = "";
+        document.getElementById('inputPago').value = "";
+    };
+
+    window.borrarDato = async (id) => { if(confirm("¿Borrar?")) await deleteDoc(doc(db, "movimientos", id)); };
+
+    window.escucharDatos = () => {
+        const q = query(collection(db, "movimientos"), orderBy("fecha", "asc"));
+        onSnapshot(q, (snapshot) => {
+            const mesSel = parseInt(document.getElementById('filtroMes').value);
+            const cuerpo = document.getElementById('cuerpoTabla');
+            cuerpo.innerHTML = "";
+            let tI = 0, tP = 0, tA = 0, datosGrafico = {};
+
+            snapshot.forEach((doc) => {
+                const d = doc.data();
+                tA += (d.ingreso - d.pago);
+                if(new Date(d.fecha).getMonth() === mesSel) {
+                    cuerpo.innerHTML += `<tr>
+                        <td>${d.concepto}</td>
+                        <td style="color:${d.ingreso>0?'green':'red'}">${d.ingreso>0?'+'+d.ingreso:'-'+d.pago}€</td>
+                        <td><button class="btn-borrar" onclick="borrarDato('${doc.id}')">🗑️</button></td>
+                    </tr>`;
+                    tI += d.ingreso; tP += d.pago;
+                    if(d.pago > 0) datosGrafico[d.concepto] = (datosGrafico[d.concepto] || 0) + d.pago;
+                }
+            });
+            document.getElementById('totalIngresos').innerText = tI.toFixed(2)+'€';
+            document.getElementById('totalPagos').innerText = tP.toFixed(2)+'€';
+            document.getElementById('totalSaldoMes').innerText = (tI-tP).toFixed(2)+'€';
+            document.getElementById('totalSaldoAcumulado').innerText = tA.toFixed(2)+'€';
+            actualizarGrafico(datosGrafico);
+        });
+    };
+
+    function actualizarGrafico(datos) {
+        if(miGrafico) miGrafico.destroy();
+        if(Object.keys(datos).length === 0) return;
+        miGrafico = new Chart(document.getElementById('miGrafico'), {
+            type: 'doughnut',
+            data: { labels: Object.keys(datos), datasets: [{ data: Object.values(datos), backgroundColor: ['#e74c3c','#3498db','#f1c40f','#2ecc71','#9b59b6'] }] },
+            options: { plugins: { legend: { display: false } } }
+        });
+    }
+
+    document.getElementById('filtroMes').value = new Date().getMonth();
+    document.getElementById('inputFecha').valueAsDate = new Date();
+    escucharDatos();
+</script>
+</body>
+</html>
