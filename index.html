@@ -50,10 +50,10 @@
     <canvas id="miGrafico"></canvas>
 
     <div class="dashboard">
-        <div class="tarjeta ingresos-card">INGRESOS <span id="totalIngresos" class="monto">0€</span></div>
-        <div class="tarjeta pagos-card">PAGOS <span id="totalPagos" class="monto">0€</span></div>
-        <div class="tarjeta saldo-mes-card">MES <span id="totalSaldoMes" class="monto">0€</span></div>
-        <div class="tarjeta saldo-total-card">ACUMULADO <span id="totalSaldoAcumulado" class="monto">0€</span></div>
+        <div class="tarjeta ingresos-card">INGRESOS MES <span id="totalIngresos" class="monto">0€</span></div>
+        <div class="tarjeta pagos-card">PAGOS MES <span id="totalPagos" class="monto">0€</span></div>
+        <div class="tarjeta saldo-mes-card">SALDO MES <span id="totalSaldoMes" class="monto">0€</span></div>
+        <div class="tarjeta saldo-total-card">ACUMULADO TOTAL <span id="totalSaldoAcumulado" class="monto">0€</span></div>
     </div>
 
     <div class="formulario">
@@ -155,14 +155,17 @@
             const mesSel = parseInt(document.getElementById('filtroMes').value);
             const cuerpo = document.getElementById('cuerpoTabla');
             cuerpo.innerHTML = "";
-            let tI = 0, tP = 0, tA = 0, gastosGrafico = {};
+            let tI_mes = 0, tP_mes = 0, tA_total = 0, gastosGrafico = {};
             let guardadosEsteMes = [];
 
             snapshot.forEach((docSnap) => {
                 const d = docSnap.data();
                 const id = docSnap.id;
-                tA += (d.ingreso - d.pago);
+                
+                // El acumulado suma TODO
+                tA_total += (d.ingreso - d.pago);
 
+                // Solo si el dato es del mes que estamos mirando...
                 if(new Date(d.fecha).getMonth() === mesSel) {
                     guardadosEsteMes.push(d.concepto.toUpperCase());
                     cuerpo.innerHTML += `<tr>
@@ -174,7 +177,9 @@
                             <button class="btn-borrar" onclick="borrarDato('${id}')">🗑️</button>
                         </td>
                     </tr>`;
-                    tI += d.ingreso; tP += d.pago;
+                    // Sumamos solo al total del mes
+                    tI_mes += d.ingreso; 
+                    tP_mes += d.pago;
                     if(d.pago > 0) gastosGrafico[d.concepto] = (gastosGrafico[d.concepto] || 0) + d.pago;
                 }
             });
@@ -190,10 +195,11 @@
                 }
             });
 
-            document.getElementById('totalIngresos').innerText = tI.toFixed(2)+'€';
-            document.getElementById('totalPagos').innerText = tP.toFixed(2)+'€';
-            document.getElementById('totalSaldoMes').innerText = (tI-tP).toFixed(2)+'€';
-            document.getElementById('totalSaldoAcumulado').innerText = tA.toFixed(2)+'€';
+            // Actualizamos las casillas con los cálculos nuevos
+            document.getElementById('totalIngresos').innerText = tI_mes.toFixed(2)+'€';
+            document.getElementById('totalPagos').innerText = tP_mes.toFixed(2)+'€';
+            document.getElementById('totalSaldoMes').innerText = (tI_mes - tP_mes).toFixed(2)+'€';
+            document.getElementById('totalSaldoAcumulado').innerText = tA_total.toFixed(2)+'€';
             actualizarGrafico(gastosGrafico);
         });
     };
