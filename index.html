@@ -26,9 +26,11 @@
         td { padding: 8px; border-bottom: 1px solid #eee; text-align: center; }
         
         .btn-borrar { background: #ff4d4d; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; }
-        .btn-editar { background: #f39c12; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; margin-right: 3px; }
+        .btn-editar { background: #f39c12; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; }
+        .btn-ok { background: #2ecc71; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; margin-right: 3px; }
         .btn-rellenar { background: #3498db; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; cursor: pointer; }
         
+        .ok-check { color: #27ae60; font-weight: bold; margin-left: 5px; }
         .fila-pendiente { background-color: #fff9e6; color: #888; font-style: italic; }
         #miGrafico { max-width: 220px; margin: 0 auto 20px; display: block; }
     </style>
@@ -122,6 +124,12 @@
         limpiarForm();
     };
 
+    window.marcarOK = async (id, conceptoActual) => {
+        if(conceptoActual.includes("✅ OK")) return; // Si ya lo tiene, no hacer nada
+        const nuevoConcepto = conceptoActual + " ✅ OK";
+        await updateDoc(doc(db, "movimientos", id), { concepto: nuevoConcepto });
+    };
+
     window.prepararEdicion = (id, f, c, i, p) => {
         document.getElementById('inputFecha').value = f;
         document.getElementById('inputConcepto').value = c;
@@ -161,23 +169,24 @@
             snapshot.forEach((docSnap) => {
                 const d = docSnap.data();
                 const id = docSnap.id;
-                
-                // El acumulado suma TODO
                 tA_total += (d.ingreso - d.pago);
 
-                // Solo si el dato es del mes que estamos mirando...
                 if(new Date(d.fecha).getMonth() === mesSel) {
-                    guardadosEsteMes.push(d.concepto.toUpperCase());
+                    let conceptoLimpio = d.concepto.replace(" ✅ OK", "");
+                    guardadosEsteMes.push(conceptoLimpio.toUpperCase());
+                    
+                    let esOK = d.concepto.includes("✅ OK");
+                    
                     cuerpo.innerHTML += `<tr>
                         <td>${d.fecha.split('-').reverse().slice(0,2).join('/')}</td>
-                        <td><b>${d.concepto}</b></td>
+                        <td style="${esOK ? 'color:#27ae60' : ''}"><b>${d.concepto}</b></td>
                         <td><span style="color:green">${d.ingreso>0?'+'+d.ingreso:''}</span><span style="color:red">${d.pago>0?'-'+d.pago:''}</span></td>
                         <td>
+                            <button class="btn-ok" onclick="marcarOK('${id}','${d.concepto}')" title="Marcar como revisado">✔️</button>
                             <button class="btn-editar" onclick="prepararEdicion('${id}','${d.fecha}','${d.concepto}',${d.ingreso},${d.pago})">✏️</button>
                             <button class="btn-borrar" onclick="borrarDato('${id}')">🗑️</button>
                         </td>
                     </tr>`;
-                    // Sumamos solo al total del mes
                     tI_mes += d.ingreso; 
                     tP_mes += d.pago;
                     if(d.pago > 0) gastosGrafico[d.concepto] = (gastosGrafico[d.concepto] || 0) + d.pago;
@@ -195,7 +204,6 @@
                 }
             });
 
-            // Actualizamos las casillas con los cálculos nuevos
             document.getElementById('totalIngresos').innerText = tI_mes.toFixed(2)+'€';
             document.getElementById('totalPagos').innerText = tP_mes.toFixed(2)+'€';
             document.getElementById('totalSaldoMes').innerText = (tI_mes - tP_mes).toFixed(2)+'€';
